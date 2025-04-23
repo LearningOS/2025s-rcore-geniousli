@@ -47,7 +47,7 @@ __restore:
     # a0: *TrapContext in user space(Constant); a1: user space token
     # switch to user space
     csrw satp, a1
-    sfence.vma
+    sfence.vma // in user's memory, but in supervisor mode
     csrw sscratch, a0
     mv sp, a0
     # now sp points to TrapContext in user space, start restoring based on it

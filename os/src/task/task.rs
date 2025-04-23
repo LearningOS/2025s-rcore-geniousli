@@ -18,7 +18,7 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
 
     /// The phys page number of trap context
-    pub trap_cx_ppn: PhysPageNum,
+    pub trap_cx_ppn: PhysPageNum, // Trap Context phy number
 
     /// The size(top addr) of program which is loaded from elf file
     pub base_size: usize,

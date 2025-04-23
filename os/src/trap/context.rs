@@ -39,11 +39,11 @@ impl TrapContext {
             x: [0; 32],
             sstatus,
             sepc: entry,  // entry point of app
-            kernel_satp,  // addr of page table
-            kernel_sp,    // kernel stack
+            kernel_satp,  // kernel page table entry, phy number
+            kernel_sp,    // app's kernel stack, each app have diff address, virtual address
             trap_handler, // addr of trap_handler function
         };
-        cx.set_sp(sp); // app's user stack pointer
+        cx.set_sp(sp); // app's user stack pointer  virtual address
         cx // return initial Trap Context of app
     }
 }
