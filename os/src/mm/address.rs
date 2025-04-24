@@ -114,12 +114,23 @@ impl VirtAddr {
         self.page_offset() == 0
     }
 
+    /// only for unmap range should be range aligned
+    pub fn check_range_aligned(start: usize, len: usize) -> bool {
+        let s: VirtAddr = start.into();
+        let e: VirtAddr = (start + len).into();
+        s.aligned() && e.aligned()
+    }
+
     /// new_area
     pub fn area_range(start: usize, len: usize) -> (VirtPageNum, VirtPageNum) {
         let s: VirtAddr = start.into();
         let off = if len % PAGE_SIZE == 0 { 0 } else { 1 };
         let off = len / PAGE_SIZE + off;
-        let s = if s.aligned() { s.floor() } else { s.ceil() };
+        let s = if s.aligned() {
+            s.floor()
+        } else {
+            s.ceil()
+        };
         (s, s.add_offset(off))
     }
 }
@@ -217,7 +228,7 @@ impl StepByOne for VirtPageNum {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 /// a simple range structure for type T
 pub struct SimpleRange<T>
 where

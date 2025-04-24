@@ -112,7 +112,7 @@ impl TaskControlBlock {
 
     /// mmap 分配的内存应该由 program管理，并且不在kernel中分配
     pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
-       let start_va: VirtAddr = start.into();
+        let start_va: VirtAddr = start.into();
         if !start_va.aligned() || start >= max_virtual_usize() {
             return -1;
         }
@@ -131,10 +131,13 @@ impl TaskControlBlock {
 
     ///
     pub fn unmmap(&mut self, start: usize, len: usize) -> isize {
-        let (start, end) = VirtAddr::area_range(start, len);
-        let mut map = MapArea::new_for_unmap(start, end);
-        if self.memory_set.unpush(&mut map) {
-            return 0;
+        if VirtAddr::check_range_aligned(start, len) {
+            let (start, end) = VirtAddr::area_range(start, len);
+            let mut map = MapArea::new_for_unmap(start, end);
+            if self.memory_set.unpush(&mut map) {
+                return 0;
+            }
+
         }
         return -1;
     }
