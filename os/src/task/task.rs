@@ -2,7 +2,8 @@
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{
-    kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
+    kernel_stack_position, max_virtual_usize, MapArea, MapPermission, MemorySet, PhysPageNum,
+    VirtAddr, KERNEL_SPACE,
 };
 use crate::trap::{trap_handler, TrapContext};
 
@@ -28,9 +29,20 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+    /// syscall counter
+    pub syscall_counter: [usize; 500],
 }
 
 impl TaskControlBlock {
+    ///
+    pub fn incr_syscall_counter(&mut self, syscall: usize) {
+        self.syscall_counter[syscall] += 1
+    }
+
+    pub fn get_syscall_counter(&self, syscall: usize) -> usize {
+        return self.syscall_counter[syscall];
+    }
+
     /// get the trap context
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
@@ -63,6 +75,7 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            syscall_counter: [0; 500],
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
@@ -95,6 +108,35 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// mmap 分配的内存应该由 program管理，并且不在kernel中分配
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
+       let start_va: VirtAddr = start.into();
+        if !start_va.aligned() || start >= max_virtual_usize() {
+            return -1;
+        }
+        if let Some(pem) = MapPermission::convert_for_user(port) {
+            let (start_va, end_va) = VirtAddr::area_range(start, len);
+
+            let map_area = MapArea::new_for_mmap(start_va, end_va, pem);
+            if !self.memory_set.hava_conflict(&map_area) {
+                self.memory_set.push(map_area, None);
+                return 0;
+            }
+        }
+
+        return -1;
+    }
+
+    ///
+    pub fn unmmap(&mut self, start: usize, len: usize) -> isize {
+        let (start, end) = VirtAddr::area_range(start, len);
+        let mut map = MapArea::new_for_unmap(start, end);
+        if self.memory_set.unpush(&mut map) {
+            return 0;
+        }
+        return -1;
     }
 }
 

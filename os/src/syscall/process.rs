@@ -1,5 +1,10 @@
 //! Process management syscalls
-use crate::task::{change_program_brk, exit_current_and_run_next, suspend_current_and_run_next};
+use crate::mm::write_translated_byte_buffer;
+use crate::mm::{write_from_ptr, read_from_ptr, VirtAddr};
+use crate::task::{
+    change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, get_current_task_syscall, mmap_for_program, unmmap_for_program
+};
+use crate::timer;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -25,30 +30,50 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-
-    trace!("kernel: sys_get_time");
-
-    -1
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let us = timer::get_time_us();
+    let val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    let token = current_user_token();
+    write_translated_byte_buffer(token, &val, ts as *const u8);
+    0
 }
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    let token = current_user_token();
+    match trace_request {
+        0 => {
+            if let Some(val) = read_from_ptr(token, id as *const u8) {
+                val as isize
+            } else {
+                -1
+            }
+        }
+        1 => {
+            if let Some(val) = write_from_ptr(token, id as *const u8, data as u8) {
+                val as isize
+            } else {
+                -1
+            }
+        }
+        2 => get_current_task_syscall(id),
+        _ => -1,
+    }
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    mmap_for_program(start, len, port)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    unmmap_for_program(start, len)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

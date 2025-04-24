@@ -133,6 +133,19 @@ impl TaskManager {
         inner.tasks[cur].change_program_brk(size)
     }
 
+    ///
+    pub fn incr_current_task_syscall(&self, syscall: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].incr_syscall_counter(syscall);
+    }
+
+    pub fn get_current_task_syscall(&self, syscall: usize) -> usize {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        return inner.tasks[cur].get_syscall_counter(syscall);
+    }
+
     /// Switch current `Running` task to the task we have found,
     /// or there is no `Ready` task and we can exit with all applications completed
     fn run_next_task(&self) {
@@ -153,6 +166,21 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// mmap for current program
+    pub fn mmap_for_curr_program(&self, start:  usize, len: usize, port: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let curr = inner.current_task;
+        inner.tasks[curr].mmap(start, len, port)
+    }
+
+    /// unmmap for current program
+    pub fn unmmap_for_curr_program(&self, start:  usize, len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let curr = inner.current_task;
+        inner.tasks[curr].unmmap(start, len)
+    }
+
 }
 
 /// Run the first task in task list.
@@ -201,4 +229,22 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+///
+pub fn incr_current_task_syscall(syscall: usize) {
+    TASK_MANAGER.incr_current_task_syscall(syscall)
+}
+pub fn get_current_task_syscall(syscall: usize) -> isize {
+    return TASK_MANAGER.get_current_task_syscall(syscall) as isize;
+}
+
+/// mmap for current task
+pub fn mmap_for_program(start: usize, len: usize, port: usize) -> isize {
+    TASK_MANAGER.mmap_for_curr_program(start, len, port)
+}
+
+/// unmmap for current task
+pub fn unmmap_for_program(start: usize, len: usize) -> isize {
+    TASK_MANAGER.unmmap_for_curr_program(start, len)
 }

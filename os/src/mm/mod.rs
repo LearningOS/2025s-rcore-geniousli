@@ -12,14 +12,13 @@ mod heap_allocator;
 mod memory_set;
 mod page_table;
 
-pub use address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
+pub use address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum, max_virtual_usize};
 use address::{StepByOne, VPNRange};
 pub use frame_allocator::{frame_alloc, FrameTracker};
 pub use memory_set::remap_test;
-pub use memory_set::{kernel_stack_position, MapPermission, MemorySet, KERNEL_SPACE};
-pub use page_table::{translated_byte_buffer, PageTableEntry};
+pub use memory_set::{kernel_stack_position, MapPermission, MemorySet, KERNEL_SPACE, MapArea};
+pub use page_table::{translated_byte_buffer, PageTableEntry, write_translated_byte_buffer, read_from_ptr, write_from_ptr};
 pub use page_table::{PTEFlags, PageTable};
-
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
     heap_allocator::init_heap();

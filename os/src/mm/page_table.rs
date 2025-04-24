@@ -1,9 +1,11 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
 use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use crate::mm::PhysAddr;
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use crate::mm::max_virtual_usize;
 
 bitflags! {
     /// page table entry flags
@@ -178,4 +180,85 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+pub fn read_from_ptr(token: usize, ptr: *const u8) -> Option<u8> {
+    if ptr as usize >= max_virtual_usize() {
+        return None;
+    }
+    let va = VirtAddr::from(ptr as usize);
+    let page_table = PageTable::from_token(token);
+    if let Some(pe) = page_table.translate(va.floor()) {
+        if pe.readable() && pe.is_valid() {
+            let offset = va.page_offset();
+            let pyadr: PhysAddr = pe.ppn().into();
+            let ppn = (pyadr.0 + offset) as *const u8;
+            let val = unsafe { ppn.read() };
+           return Some(val);
+        }
+        return None;
+    } else {
+        return None;
+    }
+}
+
+pub fn write_from_ptr(token: usize, ptr: *const u8, val: u8) -> Option<u8> {
+    if ptr as usize >= max_virtual_usize() {
+        return None;
+    }
+    let va = VirtAddr::from(ptr as usize);
+    let page_table = PageTable::from_token(token);
+    if let Some(pe) = page_table.translate(va.floor()) {
+        if pe.writable() && pe.is_valid() {
+            let pyadr: PhysAddr = pe.ppn().into();
+            let offset = va.page_offset();
+            let ppn = (pyadr.0 + offset) as *mut u8;
+            unsafe { ppn.write_volatile(val) };
+            return Some(0);
+        }
+        return None;
+    } else {
+        return None;
+    }
+}
+// /// Translate&Copy a ptr[u8] array with LENGTH len to a mutable u8 Vec through page table
+// pub fn write_translated_byte_buffer(token: usize, ptr: *const u8, data: &[u8]) {
+//     let page_table = PageTable::from_token(token);
+//     let mut start = ptr as usize;
+//     let end = start + data.len();
+//     let mut data_s = 0;
+//     let mut len = 0;
+//     while start < end {
+//         let start_va = VirtAddr::from(start);
+//         let mut vpn = start_va.floor();
+//         let ppn = page_table.translate(vpn).unwrap().ppn();
+//         vpn.step();
+//         let mut end_va: VirtAddr = vpn.into();
+//         end_va = end_va.min(VirtAddr::from(end));
+//         if end_va.page_offset() == 0 {
+//             len = end_va - start_va;
+//             ppn.get_bytes_array()[start_va.page_offset()..]
+//                 .copy_from_slice(&data[data_s..=(data_s + len)]);
+//         } else {
+//             len = end_va.page_offset() - start_va.page_offset();
+//             ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]
+//                 .copy_from_slice(&data[data_s..(data_s + len)]);
+//         }
+//         data_s = data_s + len;
+//         start = end_va.into();
+//     }
+// }
+
+pub fn write_translated_byte_buffer<T>(token: usize, data: &T, ptr: *const u8) {
+    let phy_dest = translated_byte_buffer(token, ptr, core::mem::size_of::<T>());
+
+    let src_ptr = data as *const T;
+    for (idx, dst) in phy_dest.into_iter().enumerate() {
+        let len = dst.len();
+        unsafe {
+            dst.copy_from_slice(core::slice::from_raw_parts(
+                src_ptr.wrapping_byte_add(idx * len) as *const u8,
+                len,
+            ));
+        }
+    }
 }
