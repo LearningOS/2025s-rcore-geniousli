@@ -113,6 +113,22 @@ impl VirtAddr {
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
     }
+
+    /// only for unmap range should be range aligned
+    pub fn check_range_aligned(start: usize, len: usize) -> bool {
+        let s: VirtAddr = start.into();
+        let e: VirtAddr = (start + len).into();
+        s.aligned() && e.aligned()
+    }
+
+    /// new_area
+    pub fn area_range(start: usize, len: usize) -> (VirtPageNum, VirtPageNum) {
+        let s: VirtAddr = start.into();
+        let off = if len % PAGE_SIZE == 0 { 0 } else { 1 };
+        let off = len / PAGE_SIZE + off;
+        let s = if s.aligned() { s.floor() } else { s.ceil() };
+        (s, s.add_offset(off))
+    }
 }
 impl From<VirtAddr> for VirtPageNum {
     fn from(v: VirtAddr) -> Self {
@@ -165,6 +181,11 @@ impl VirtPageNum {
             vpn >>= 9;
         }
         idx
+    }
+
+    ///
+    pub fn add_offset(&self, off: usize) -> VirtPageNum {
+        VirtPageNum(self.0 + off)
     }
 }
 
@@ -271,3 +292,7 @@ where
 }
 /// a simple range structure for virtual page number
 pub type VPNRange = SimpleRange<VirtPageNum>;
+
+pub fn max_virtual_usize() -> usize {
+    (1 << VA_WIDTH_SV39) - 1
+}

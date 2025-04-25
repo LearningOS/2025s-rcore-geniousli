@@ -213,3 +213,18 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+pub fn write_translated_byte_buffer<T>(token: usize, data: &T, ptr: *const u8) {
+    let phy_dest = translated_byte_buffer(token, ptr, core::mem::size_of::<T>());
+
+    let src_ptr = data as *const T;
+    for (idx, dst) in phy_dest.into_iter().enumerate() {
+        let len = dst.len();
+        unsafe {
+            dst.copy_from_slice(core::slice::from_raw_parts(
+                src_ptr.wrapping_byte_add(idx * len) as *const u8,
+                len,
+            ));
+        }
+    }
+}

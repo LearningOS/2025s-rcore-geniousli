@@ -2,7 +2,9 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{
+    max_virtual_usize, MapArea, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
+};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
@@ -33,6 +35,16 @@ impl TaskControlBlock {
     pub fn get_user_token(&self) -> usize {
         let inner = self.inner_exclusive_access();
         inner.memory_set.token()
+    }
+
+    pub fn get_stride(&self) -> usize {
+        let inner = self.inner_exclusive_access();
+        inner.stride
+    }
+
+    pub fn incr_stride(&self) {
+        let mut inner = self.inner_exclusive_access();
+        inner.incr_stride();
     }
 }
 
@@ -68,6 +80,10 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+    ///
+    pub pass: usize,
+    ///
+    pub stride: usize,
 }
 
 impl TaskControlBlockInner {
@@ -84,6 +100,45 @@ impl TaskControlBlockInner {
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+
+    /// mmap 分配的内存应该由 program管理，并且不在kernel中分配
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
+        let start_va: VirtAddr = start.into();
+        if !start_va.aligned() || start >= max_virtual_usize() {
+            return -1;
+        }
+        if let Some(pem) = MapPermission::convert_for_user(port) {
+            let (start_va, end_va) = VirtAddr::area_range(start, len);
+
+            let map_area = MapArea::new_for_mmap(start_va, end_va, pem);
+            if !self.memory_set.hava_conflict(&map_area) {
+                self.memory_set.push(map_area, None);
+                return 0;
+            }
+        }
+
+        return -1;
+    }
+
+    ///
+    pub fn unmmap(&mut self, start: usize, len: usize) -> isize {
+        if VirtAddr::check_range_aligned(start, len) {
+            let (start, end) = VirtAddr::area_range(start, len);
+            let mut map = MapArea::new_for_unmap(start, end);
+            if self.memory_set.unpush(&mut map) {
+                return 0;
+            }
+        }
+        return -1;
+    }
+
+    pub fn set_priority(&mut self, prio: usize) {
+        self.pass = prio;
+    }
+
+    pub fn incr_stride(&mut self) {
+        self.stride += self.pass;
     }
 }
 
@@ -118,6 +173,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    pass: 16,
+                    stride: 0,
                 })
             },
         };
@@ -130,6 +187,51 @@ impl TaskControlBlock {
             kernel_stack_top,
             trap_handler as usize,
         );
+        task_control_block
+    }
+
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT_BASE).into())
+            .unwrap()
+            .ppn();
+        let pid_handle = pid_alloc();
+        let kernel_stack = kstack_alloc();
+        let kernel_stack_top = kernel_stack.get_top();
+        let task_control_block = Arc::new(TaskControlBlock {
+            pid: pid_handle,
+            kernel_stack,
+            inner: unsafe {
+                UPSafeCell::new(TaskControlBlockInner {
+                    trap_cx_ppn,
+                    base_size: user_sp,
+                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                    task_status: TaskStatus::Ready,
+                    memory_set,
+                    parent: Some(Arc::downgrade(self)),
+                    children: Vec::new(),
+                    exit_code: 0,
+                    // ? what's meaning
+                    heap_bottom: user_sp,
+                    program_brk: user_sp,
+                    pass: 16,
+                    stride: 0,
+                })
+            },
+        });
+
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+        *trap_cx = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
+            trap_handler as usize,
+        );
+
+        let mut parent_inner = self.inner_exclusive_access();
+        parent_inner.children.push(task_control_block.clone());
         task_control_block
     }
 
@@ -191,6 +293,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    pass: 16,
+                    stride: 0,
                 })
             },
         });
@@ -235,6 +339,17 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    pub fn mmap(&self, start: usize, len: usize, port: usize) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        return inner.mmap(start, len, port);
+    }
+
+    ///
+    pub fn unmmap(&self, start: usize, len: usize) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        return inner.unmmap(start, len);
     }
 }
 

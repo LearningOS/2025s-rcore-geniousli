@@ -23,7 +23,30 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue.pop_front()
+        if self.ready_queue.len() == 0 {
+            return None;
+        }
+        // for (i, item) in self.ready_queue.iter().enumerate() {
+        //     println!("i: {}, task: {}, stride: {}", i, item.pid.0, item.get_stride());
+        // }
+
+        let max = self
+            .ready_queue
+            .iter()
+            .enumerate()
+            .min_by_key(|item| item.1.get_stride());
+        if let Some(imax) = max {
+            // println!("fetch r----------");
+            let index = imax.0;
+            let mut task = self.ready_queue.remove(index);
+            if let Some(ref mut task) = task {
+                // println!("fetch return task: {}", task.pid.0);
+                task.incr_stride();
+            }
+
+            return task;
+        }
+        return None;
     }
 }
 
