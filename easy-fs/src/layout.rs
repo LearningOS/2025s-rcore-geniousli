@@ -79,6 +79,7 @@ type IndirectBlock = [u32; BLOCK_SZ / 4];
 /// A data block
 type DataBlock = [u8; BLOCK_SZ];
 /// A disk inode
+/// Inode struct, direct 为 block id array
 #[repr(C)]
 pub struct DiskInode {
     pub size: u32,

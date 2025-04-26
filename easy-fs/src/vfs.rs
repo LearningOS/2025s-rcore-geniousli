@@ -7,6 +7,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use spin::{Mutex, MutexGuard};
 /// Virtual filesystem layer over easy-fs
+/// offset is DiskNode
 pub struct Inode {
     block_id: usize,
     block_offset: usize,
@@ -59,6 +60,7 @@ impl Inode {
         None
     }
     /// Find inode under current inode by name
+    /// root inode
     pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {

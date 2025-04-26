@@ -32,6 +32,7 @@ impl BlockCache {
         &self.cache[offset] as *const _ as usize
     }
 
+    /// 代码非常好，使用T 将指针转换到类型 T
     pub fn get_ref<T>(&self, offset: usize) -> &T
     where
         T: Sized,
