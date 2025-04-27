@@ -13,6 +13,7 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use core::any::Any;
 
 /// Task control block structure
 ///
@@ -236,6 +237,14 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                     pass: 16,
                     stride: 0,
+                    fd_table: vec![
+                        // 0 -> stdin
+                        Some(Arc::new(Stdin)),
+                        // 1 -> stdout
+                        Some(Arc::new(Stdout)),
+                        // 2 -> stderr
+                        Some(Arc::new(Stdout)),
+                    ],
                 })
             },
         });

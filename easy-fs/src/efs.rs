@@ -9,9 +9,9 @@ use spin::Mutex;
 pub struct EasyFileSystem {
     ///Real device
     pub block_device: Arc<dyn BlockDevice>,
-    ///Inode bitmap
+    ///Inode bitmap, each bit is DiskInode
     pub inode_bitmap: Bitmap,
-    ///Data bitmap
+    ///Data bitmap, each bit is a block,
     pub data_bitmap: Bitmap,
     inode_area_start_block: u32,
     data_area_start_block: u32,
@@ -109,7 +109,7 @@ impl EasyFileSystem {
         // acquire efs lock temporarily
         let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0);
         // release efs lock
-        Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
+        Inode::new(block_id, block_offset, Arc::clone(efs), block_device, 0)
     }
     /// Get inode by id
     /// block id & offset in this block
@@ -122,6 +122,14 @@ impl EasyFileSystem {
             (inode_id % inodes_per_block) as usize * inode_size,
         )
     }
+    pub fn convert_block_id_offset_to_inode(&self, block_id: usize, block_offset: usize) -> u64 {
+        let inode_size = core::mem::size_of::<DiskInode>();
+        let inodes_per_block = (BLOCK_SZ / inode_size) as u32;
+        let val = (block_id as u64 - self.inode_area_start_block as u64) * inodes_per_block as u64
+            + block_offset as u64 / inode_size as u64;
+        return val;
+    }
+
     /// Get data block by id
     pub fn get_data_block_id(&self, data_block_id: u32) -> u32 {
         self.data_area_start_block + data_block_id
@@ -135,6 +143,7 @@ impl EasyFileSystem {
     pub fn alloc_data(&mut self) -> u32 {
         self.data_bitmap.alloc(&self.block_device).unwrap() as u32 + self.data_area_start_block
     }
+
     /// Deallocate a data block
     pub fn dealloc_data(&mut self, block_id: u32) {
         get_block_cache(block_id as usize, Arc::clone(&self.block_device))
@@ -148,5 +157,9 @@ impl EasyFileSystem {
             &self.block_device,
             (block_id - self.data_area_start_block) as usize,
         )
+    }
+
+    pub fn dealloc_inode(&mut self, node_id: u32) {
+        self.inode_bitmap.dealloc(&self.block_device, node_id as usize);
     }
 }

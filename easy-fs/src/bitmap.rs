@@ -25,7 +25,7 @@ impl Bitmap {
             blocks,
         }
     }
-    /// Allocate a new block from a block device
+    /// Allocate a new block from a block device, return is node id
     pub fn alloc(&self, block_device: &Arc<dyn BlockDevice>) -> Option<usize> {
         for block_id in 0..self.blocks {
             let pos = get_block_cache(
@@ -53,6 +53,7 @@ impl Bitmap {
         }
         None
     }
+
     /// Deallocate a block
     pub fn dealloc(&self, block_device: &Arc<dyn BlockDevice>, bit: usize) {
         let (block_pos, bits64_pos, inner_pos) = decomposition(bit);
@@ -63,6 +64,35 @@ impl Bitmap {
                 bitmap_block[bits64_pos] -= 1u64 << inner_pos;
             });
     }
+
+    // pub fn dealloc_inode(&self, block_device: &Arc<dyn BlockDevice>, node_id: u32) {
+    //     let block_id = node_id as usize / (8 * BLOCK_BITS);
+    //     let mut remain = node_id as usize % (8 * BLOCK_BITS);
+
+    //     let pos = get_block_cache(
+    //         block_id + self.start_block_id as usize,
+    //         Arc::clone(block_device),
+    //     )
+    //     .lock()
+    //     .modify(0, |bitmap_block: &mut BitmapBlock| {
+    //         for (index, item) in bitmap_block.iter().enumerate() {
+    //             if index * 64 > remain {
+    //                 bitmap_block[index] &= 1u64 << remain;
+    //                 break;
+    //             } else {
+    //                 remain = remain - index * 64;
+    //             }
+    //         }
+    //     });
+    //     let (block_pos, bits64_pos, inner_pos) = decomposition(bit);
+    //     get_block_cache(block_pos + self.start_block_id, Arc::clone(block_device))
+    //         .lock()
+    //         .modify(0, |bitmap_block: &mut BitmapBlock| {
+    //             assert!(bitmap_block[bits64_pos] & (1u64 << inner_pos) > 0);
+    //             bitmap_block[bits64_pos] -= 1u64 << inner_pos;
+    //         });
+    // }
+
     /// Get the max number of allocatable blocks
     pub fn maximum(&self) -> usize {
         self.blocks * BLOCK_BITS
