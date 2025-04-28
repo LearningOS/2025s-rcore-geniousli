@@ -1,6 +1,6 @@
 use crate::{
     fs::{open_file, OpenFlags},
-    mm::{translated_ref, translated_refmut, translated_str},
+    mm::{translated_ref, translated_refmut, translated_str, write_translated_byte_buffer},
     task::{
         current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
         suspend_current_and_run_next, SignalFlags,
@@ -157,8 +157,15 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
 
+    let us = timer::get_time();
+    let val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
 
-    -1
+    let token = current_user_token();
+    write_translated_byte_buffer(token, &val, ts as *const u8);
+    0
 }
 
 /// mmap syscall
