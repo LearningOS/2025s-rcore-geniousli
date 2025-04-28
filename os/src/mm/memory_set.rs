@@ -234,6 +234,7 @@ impl MemorySet {
         )
     }
     /// Create a new address space by copy code&data from a exited process's address space.
+    /// copy user stack & heap , anything, userstack, userheap, trap context, elf (code + global data, etc..)
     pub fn from_existed_user(user_space: &Self) -> Self {
         let mut memory_set = Self::new_bare();
         // map trampoline
