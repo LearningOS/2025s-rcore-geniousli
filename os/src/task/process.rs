@@ -49,6 +49,8 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// deadlock_detect
+    pub deadlock_detect: bool,
 }
 
 impl ProcessControlBlockInner {
@@ -85,6 +87,12 @@ impl ProcessControlBlockInner {
 }
 
 impl ProcessControlBlock {
+    ///
+    pub fn set_deadlock_detect(&self, is_enable: bool) {
+        let mut inner = self.inner_exclusive_access();
+        inner.deadlock_detect = is_enable;
+    }
+
     /// inner_exclusive_access
     pub fn inner_exclusive_access(&self) -> RefMut<'_, ProcessControlBlockInner> {
         self.inner.exclusive_access()
@@ -119,6 +127,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_detect: false,
                 })
             },
         });
@@ -245,6 +254,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_detect: false,
                 })
             },
         });
