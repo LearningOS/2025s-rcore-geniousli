@@ -34,8 +34,10 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     let new_task_inner = new_task.inner_exclusive_access();
     let new_task_res = new_task_inner.res.as_ref().unwrap();
     let new_task_tid = new_task_res.tid;
+
     let mut process_inner = process.inner_exclusive_access();
     // add new thread to current process
+    // process_inner.resize_alloc(new_task_tid);
     let tasks = &mut process_inner.tasks;
     while tasks.len() < new_task_tid + 1 {
         tasks.push(None);

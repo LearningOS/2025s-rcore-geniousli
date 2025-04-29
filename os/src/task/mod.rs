@@ -99,10 +99,10 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     if tid == 0 {
         let pid = process.getpid();
         if pid == IDLE_PID {
-            println!(
-                "[kernel] Idle process exit with exit_code {} ...",
-                exit_code
-            );
+            // println!(
+            //     "[kernel] Idle process exit with exit_code {} ...",
+            //     exit_code
+            // );
             if exit_code != 0 {
                 //crate::sbi::shutdown(255); //255 == -1 for err hint
                 crate::board::QEMU_EXIT_HANDLE.exit_failure();

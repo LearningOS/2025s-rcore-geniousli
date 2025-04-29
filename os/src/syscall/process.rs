@@ -6,6 +6,7 @@ use crate::{
         suspend_current_and_run_next, SignalFlags,
     },
 };
+use crate::timer;
 use alloc::{string::String, sync::Arc, vec::Vec};
 
 #[repr(C)]
@@ -152,11 +153,6 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().process.upgrade().unwrap().getpid()
-    );
-
     let us = timer::get_time();
     let val = TimeVal {
         sec: us / 1_000_000,
@@ -176,6 +172,9 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
+
+
+
     -1
 }
 
@@ -187,6 +186,9 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
+
+
+
     -1
 }
 
